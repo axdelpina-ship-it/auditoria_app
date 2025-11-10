@@ -2,68 +2,63 @@ import streamlit as st
 import pandas as pd
 import os
 
-# ---- ARCHIVO EXCEL ----
-EXCEL_FILE = "data.xlsx"
+# Nombre del archivo Excel donde se guardarán los resultados
+EXCEL_FILE = "resultados.xlsx"
 
-# Crear Excel vacío si no existe
-if not os.path.exists(EXCEL_FILE):
-    df = pd.DataFrame(columns=["Usuario", "Pregunta1", "Pregunta2", "Pregunta3", "Total"])
-    df.to_excel(EXCEL_FILE, index=False)
-
-# ---- FUNCIONES ----
+# --- Funciones ---
 def cargar_datos():
-    return pd.read_excel(EXCEL_FILE)
+    if os.path.exists(EXCEL_FILE):
+        df = pd.read_excel(EXCEL_FILE)
+    else:
+        # Crear DataFrame vacío si no existe el archivo
+        df = pd.DataFrame(columns=["Usuario", "Pregunta1", "Pregunta2", "Pregunta3", "Total"])
+    return df
 
 def guardar_respuesta(usuario, respuestas):
     df = cargar_datos()
     total = sum(respuestas)
-    df = df.append({"Usuario": usuario,
-                    "Pregunta1": respuestas[0],
-                    "Pregunta2": respuestas[1],
-                    "Pregunta3": respuestas[2],
-                    "Total": total}, ignore_index=True)
+    nuevo_registro = pd.DataFrame([{
+        "Usuario": usuario,
+        "Pregunta1": respuestas[0],
+        "Pregunta2": respuestas[1],
+        "Pregunta3": respuestas[2],
+        "Total": total
+    }])
+    df = pd.concat([df, nuevo_registro], ignore_index=True)
     df.to_excel(EXCEL_FILE, index=False)
 
-def mostrar_ranking():
-    df = cargar_datos()
-    df_sorted = df.sort_values(by="Total", ascending=False)
-    st.subheader("🏆 Ranking de usuarios")
-    st.dataframe(df_sorted)
+# --- Streamlit App ---
+st.title("Encuesta de Satisfacción")
 
-# ---- LOGIN / REGISTRO ----
-st.title("🎮 Carrera de Satisfacción")
+# Login simple
+if "current_user" not in st.session_state:
+    st.session_state.current_user = None
 
-# Lista de usuarios
-if "usuarios" not in st.session_state:
-    st.session_state.usuarios = []
+if st.session_state.current_user is None:
+    usuario_input = st.text_input("Ingresa tu usuario:")
+    if st.button("Ingresar"):
+        if usuario_input:
+            st.session_state.current_user = usuario_input
+            st.success(f"Bienvenido, {usuario_input}")
+            st.experimental_rerun()
+else:
+    st.write(f"Usuario: {st.session_state.current_user}")
 
-usuario = st.text_input("Ingresa tu nombre de usuario")
-
-if st.button("Entrar"):
-    if usuario:
-        st.session_state.current_user = usuario
-        st.success(f"Bienvenido {usuario}")
-    else:
-        st.error("Ingresa un nombre válido")
-
-# ---- ENCUESTA ----
-if "current_user" in st.session_state:
-    st.subheader("Responde la encuesta")
-    pregunta1 = st.slider("Pregunta 1: ¿Qué tan satisfecho estás?", 0, 10, 5)
-    pregunta2 = st.slider("Pregunta 2: ¿Cómo calificarías la atención?", 0, 10, 5)
-    pregunta3 = st.slider("Pregunta 3: ¿Volverías a usar nuestro servicio?", 0, 10, 5)
+    # Preguntas
+    st.subheader("Responde la encuesta:")
+    q1 = st.slider("Pregunta 1: ¿Qué tan satisfecho estás con el servicio?", 1, 5, 3)
+    q2 = st.slider("Pregunta 2: ¿Recomendarías nuestro servicio?", 1, 5, 3)
+    q3 = st.slider("Pregunta 3: ¿Qué tan fácil fue usar nuestra plataforma?", 1, 5, 3)
 
     if st.button("Enviar respuestas"):
-        respuestas = [pregunta1, pregunta2, pregunta3]
+        respuestas = [q1, q2, q3]
         guardar_respuesta(st.session_state.current_user, respuestas)
-        st.success("✅ Respuestas guardadas")
-        st.balloons()
+        st.success("¡Respuestas guardadas correctamente!")
+        # Limpiar sesión para que el usuario pueda cerrar sesión si quiere
+        st.session_state.current_user = None
+        st.experimental_rerun()
 
-    # ---- BARRA DE PROGRESO ----
-    df = cargar_datos()
-    usuario_total = df[df["Usuario"] == st.session_state.current_user]["Total"].sum()
-    progreso = min(usuario_total * 10, 100)
-    st.progress(progreso)
-
-    # ---- RANKING ----
-    mostrar_ranking()
+    # Mostrar resultados (opcional, solo para testing)
+    if st.checkbox("Ver todos los resultados"):
+        df = cargar_datos()
+        st.dataframe(df)
